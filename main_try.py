@@ -27,13 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-try:
-    # compile=False untuk mempercepat loading
-    model = tf.keras.models.load_model('fake_followers_model.keras', compile=False)
-    scaler = joblib.load('scaler.pkl')
-    print("✅ Model AI dan Scaler siap!")
-except Exception as e:
-    print(f"❌ Gagal memuat AI: {e}")
+# ==========================================
+# LOAD AI & SCALERgit
+# ==========================================
+model = tf.keras.models.load_model('fake_followers_model.keras', compile=False)
+scaler = joblib.load('scaler.pkl')
+print("✅ Model AI dan Scaler siap!")
 
 apify_client = ApifyClient(APIFY_TOKEN)
 
@@ -47,7 +46,18 @@ class DataAkun(BaseModel):
 
 
 # ==========================================
-# 3. ENDPOINT UTAMA (DENGAN GERBANG TOL)
+# 3. ENDPOINT ROOT 
+# ==========================================
+@app.get("/")
+def home():
+    return {
+        "status": "aktif",
+        "message": "Selamat datang di API Deteksi Bot Fleuncy AI. Gunakan endpoint POST /api/cek-bot untuk memvalidasi akun."
+    }
+
+
+# ==========================================
+# 4. ENDPOINT UTAMA 
 # ==========================================
 @app.post("/api/cek-bot")
 def cek_akun(data: DataAkun):
@@ -63,7 +73,7 @@ def cek_akun(data: DataAkun):
             raise HTTPException(status_code=404, detail="Akun tidak ditemukan. Pastikan nama IG benar.")
 
         # ==========================================
-        # 🚧 GERBANG TOL: PENGECEKAN AKUN PRIVATE 🚧
+        # CHECK ACC PRIVATE
         # ==========================================
         info_akun = profil_target[0]
         
@@ -83,7 +93,7 @@ def cek_akun(data: DataAkun):
         raise HTTPException(status_code=500, detail=f"Gagal menghubungi Apify: {str(e)}")
 
 
-    # --- FASE 2: MEMBUAT DATA SIMULASI (Hanya jika lolos gerbang di atas) ---
+    # --- FASE 2: MEMBUAT DATA SIMULASI ---
     data_untuk_ai = []
     for i in range(data.jumlah_sampel):
         is_simulated_bot = random.random() < random.uniform(0.15, 0.25)
@@ -93,7 +103,7 @@ def cek_akun(data: DataAkun):
             data_untuk_ai.append([1, 0.05, 2, 0.0, 0, 50, 1, random.choice([0, 1]), 120, 1500, 350]) # Pola Manusia
 
 
-    # --- FASE 3: AI MEMBERIKAN VONIS ---
+    # --- FASE 3: AI REKOMENDASI ---
     nama_kolom = [
         'profile pic', 'nums/length username', 'fullname words', 
         'nums/length fullname', 'name==username', 'description length', 
@@ -109,13 +119,13 @@ def cek_akun(data: DataAkun):
     persentase_asli = 100 - persentase_bot
 
 
-    # --- FASE 4: LOGIKA REKOMENDASI ---
+    # --- FASE 4: LOGIKA REKOMENDASI BERLAPIS (DENGAN ANGKA DINAMIS) ---
     if persentase_bot < 15.0:
         rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi sekitar {persentase_bot:.1f}% pengikut bot. Akun ini memiliki audiens yang sangat organik dan direkomendasikan untuk kolaborasi pemasaran jangka panjang."
     elif persentase_bot < 31.0:
         rekomendasi = f"Wajar. Terdeteksi sekitar {persentase_bot:.1f}% pengikut bot, yang mana masih dalam batas normal industri. Masih aman untuk kolaborasi, namun tetap pantau rasio engagement kontennya."
     elif persentase_bot <= 60.0:
-        rekomendasi = f"Waspada. Probabilitas pengikut bot cukup signifikan di angka {persentase_bot:.1f}%. Disarankan untuk melakukan peninjauan dan pertimbangan sebelum mengalokasikan anggaran besar."
+        rekomendasi = f"Waspada. Probabilitas pengikut bot cukup signifikan di angka {persentase_bot:.1f}%. Disarankan untuk melakukan peninjauan manual pada daftar pengikut sebelum mengalokasikan anggaran besar."
     else:
         rekomendasi = f"Berisiko Tinggi. Mayoritas pengikut terdeteksi sebagai akun bot atau tidak aktif ({persentase_bot:.1f}%). Investasi pemasaran pada akun ini berisiko sangat tinggi mengakibatkan pemborosan anggaran (budget waste)."
 
