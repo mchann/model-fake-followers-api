@@ -2,8 +2,7 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
-tensorflow==2.21.0
-keras==3.14.0
+tensorflow==2.20.0
 pandas
 numpy
 scikit-learn
