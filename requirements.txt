@@ -2,7 +2,7 @@ fastapi
 uvicorn
 pydantic
 python-dotenv
-tensorflow
+tensorflow>=2.16.1
 pandas
 numpy
 scikit-learn
