@@ -52,7 +52,7 @@ class DataAkun(BaseModel):
 def home():
     return {
         "status": "aktif",
-        "message": "Selamat datang di API Deteksi Bot Fleuncy AI. Gunakan endpoint POST /api/cek-bot untuk memvalidasi akun."
+        "message": "Selamat datang di API Deteksi Bot AI. Gunakan endpoint POST /api/cek-bot untuk memvalidasi akun."
     }
 
 
