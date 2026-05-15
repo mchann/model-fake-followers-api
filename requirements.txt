@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+tensorflow
+pandas
+numpy
+scikit-learn
+joblib
+apify-client
