@@ -119,12 +119,12 @@ def cek_akun(data: DataAkun):
     persentase_asli = 100 - persentase_bot
 
 
-    # --- FASE 4: LOGIKA REKOMENDASI BERLAPIS (DENGAN ANGKA DINAMIS) ---
+    # --- FASE 4: LOGIKA REKOMENDASI BERLAPIS  ---
     if persentase_bot < 15.0:
-        rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi sekitar {persentase_bot:.1f}% pengikut bot. Akun ini memiliki audiens yang sangat organik dan direkomendasikan untuk kolaborasi pemasaran jangka panjang."
+        rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi sekitar {persentase_bot:.1f}% pengikut bot. Akun ini memiliki audiens yang sangat organik dan direkomendasikan untuk kolaborasi pemasaran."
     elif persentase_bot < 31.0:
         rekomendasi = f"Wajar. Terdeteksi sekitar {persentase_bot:.1f}% pengikut bot, yang mana masih dalam batas normal industri. Masih aman untuk kolaborasi, namun tetap pantau rasio engagement kontennya."
-    elif persentase_bot <= 60.0:
+    elif persentase_bot <= 50.0:
         rekomendasi = f"Waspada. Probabilitas pengikut bot cukup signifikan di angka {persentase_bot:.1f}%. Disarankan untuk melakukan peninjauan manual pada daftar pengikut sebelum mengalokasikan anggaran besar."
     else:
         rekomendasi = f"Berisiko Tinggi. Mayoritas pengikut terdeteksi sebagai akun bot atau tidak aktif ({persentase_bot:.1f}%). Investasi pemasaran pada akun ini berisiko sangat tinggi mengakibatkan pemborosan anggaran (budget waste)."
