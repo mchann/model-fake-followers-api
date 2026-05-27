@@ -4,20 +4,23 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import numpy as np
 import pandas as pd
 import tensorflow as tf
 import joblib
 from datetime import datetime, timezone, timedelta
 from apify_client import ApifyClient
 
-# ==========================================
-# 1. PERSIAPAN SISTEM & KEAMANAN
-# ==========================================
-load_dotenv()
-APIFY_TOKEN = os.getenv("APIFY_TOKEN")
 
-app = FastAPI()
+load_dotenv()
+
+# --- Auto-Detect Semua Token di Hugging Face ---
+DAFTAR_TOKEN = [value for key, value in os.environ.items() if key.startswith("APIFY_TOKEN_") and value.strip()]
+
+app = FastAPI(
+    title="Fluensy AI (Demo Mode)",
+    description="Bot Detection API with Simulated Inference & Multi-Token",
+    version="2.2.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,75 +30,91 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==========================================
-# LOAD AI & SCALERgit
-# ==========================================
-model = tf.keras.models.load_model('fake_followers_model.keras', compile=False)
-scaler = joblib.load('scaler.pkl')
-print("✅ Model AI dan Scaler siap!")
+# LOAD AI & SCALER
 
-apify_client = ApifyClient(APIFY_TOKEN)
+try:
+    model = tf.keras.models.load_model('fake_followers_model.keras', compile=False)
+    scaler = joblib.load('scaler.pkl')
+    print("✅ Model AI dan Scaler siap!")
+    print(f"🔋 Sistem berjalan dengan {len(DAFTAR_TOKEN)} Token Apify Cadangan.")
+except Exception as e:
+    print(f"❌ ERROR Loading AI Assets: {e}")
 
-
-# ==========================================
 # 2. ATURAN INPUT
-# ==========================================
 class DataAkun(BaseModel):
     username: str
     jumlah_sampel: int = 50 
 
-
-# ==========================================
 # 3. ENDPOINT ROOT 
-# ==========================================
 @app.get("/")
 def home():
     return {
         "status": "aktif",
-        "message": "Selamat datang di API Deteksi Bot AI. Gunakan endpoint POST /api/cek-bot untuk memvalidasi akun."
+        "message": "API Deteksi Bot AI (Simulated Mode). Gunakan endpoint POST /api/cek-bot."
     }
 
-
-# ==========================================
 # 4. ENDPOINT UTAMA 
-# ==========================================
+
 @app.post("/api/cek-bot")
 def cek_akun(data: DataAkun):
     target_ig = data.username.replace("@", "").strip()
-    
-    # --- FASE 1: AMBIL DATA DARI APIFY ---
-    try:
-        run_input = {"usernames": [target_ig]}
-        jalankan_scraper = apify_client.actor("apify/instagram-profile-scraper").call(run_input=run_input)
-        profil_target = list(apify_client.dataset(jalankan_scraper["defaultDatasetId"]).iterate_items())
-        
-        if len(profil_target) == 0:
-            raise HTTPException(status_code=404, detail="Akun tidak ditemukan. Pastikan nama IG benar.")
 
-        # ==========================================
-        # CHECK ACC PRIVATE
-        # ==========================================
-        info_akun = profil_target[0]
+    # --- FUNGSI AUTO-SWITCH TOKEN LOKAL ---
+    working_token_idx = 0 
+    def jalankan_scraper_aman_lokal(actor_id, run_input):
+        nonlocal working_token_idx
+        if not DAFTAR_TOKEN:
+            raise Exception("Environment variables untuk token Apify kosong.")
+
+        for i in range(working_token_idx, len(DAFTAR_TOKEN)):
+            try:
+                print(f"🔄 Trying Apify with Token {i + 1}...")
+                client = ApifyClient(DAFTAR_TOKEN[i])
+                run = client.actor(actor_id).call(run_input=run_input)
+                hasil = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+
+                if len(hasil) == 0:
+                    print(f"⚠️ Token {i + 1} jalan, tapi return 0 data.")
+                    raise Exception("Data empty. Limit tercapai atau diblokir IG.")
+
+                print(f"✅ Token {i + 1} Success!")
+                working_token_idx = i  
+                return hasil 
+                
+            except Exception as e:
+                print(f"⚠️ Token {i + 1} Failed. ALASAN: {str(e)}")
+                continue 
         
-        # Cek semua kemungkinan kunci variabel dari Apify
+        raise Exception("CRITICAL: Semua token limit atau gagal dieksekusi.")
+    
+    # --- FASE 1: AMBIL DATA DARI APIFY (CUMA CEK PRIVATE/PUBLIC) ---
+    try:
+        run_input_cek = {"usernames": [target_ig]}
+        # Panggil Apify cuma buat ngecek 1 profil ini aja
+        profil_target = jalankan_scraper_aman_lokal("apify/instagram-profile-scraper", run_input_cek)
+        
+        if not profil_target:
+            raise HTTPException(status_code=404, detail="Akun target tidak ditemukan. Pastikan nama IG benar.")
+
+        info_akun = profil_target[0]
         status_private = info_akun.get("isPrivate") or info_akun.get("is_private") or info_akun.get("private")
         
-        # Jika akun digembok, LANGSUNG PULANG (Return awal)
-        if status_private is True or str(status_private).lower() == "true":
+        # Jika akun digembok,Return awal
+        if str(status_private).lower() == "true":
             return {
                 "status": "restricted",
                 "message": f"Mohon maaf, kami tidak dapat mengaudit @{target_ig} karena akun bersifat private. Silakan pastikan akun target bersifat publik untuk mendapatkan hasil audit yang akurat.",
                 "target_akun": f"@{target_ig}"
             }
-        # ==========================================
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal menghubungi Apify: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Gagal mengecek status akun target: {str(e)}")
 
 
     # --- FASE 2: MEMBUAT DATA SIMULASI ---
     data_untuk_ai = []
     for i in range(data.jumlah_sampel):
+        # AI akan merandom probabilitas bot antara 15% sampai 25% biar kelihatan natural
         is_simulated_bot = random.random() < random.uniform(0.15, 0.25)
         if is_simulated_bot:
             data_untuk_ai.append([0, 0.85, 1, 0.0, 0, 5, 0, 0, 0, 5, 4000]) # Pola Bot
@@ -115,11 +134,15 @@ def cek_akun(data: DataAkun):
     
     jumlah_bot = sum(1 for skor in hasil_prediksi if skor[0] > 0.5)
     total_diperiksa = len(data_untuk_ai)
+    
+    if total_diperiksa == 0:
+        raise HTTPException(status_code=500, detail="Data tensor kosong.")
+        
     persentase_bot = (jumlah_bot / total_diperiksa) * 100
     persentase_asli = 100 - persentase_bot
 
 
-    # --- FASE 4: LOGIKA REKOMENDASI BERLAPIS  ---
+    # --- FASE 4: LOGIKA REKOMENDASI BERLAPIS ---
     if persentase_bot < 15.0:
         rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi sekitar {persentase_bot:.1f}% pengikut bot. Akun ini memiliki audiens yang sangat organik dan direkomendasikan untuk kolaborasi pemasaran."
     elif persentase_bot < 31.0:
