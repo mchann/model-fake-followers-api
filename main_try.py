@@ -10,7 +10,6 @@ import joblib
 from datetime import datetime, timezone, timedelta
 from apify_client import ApifyClient
 
-
 load_dotenv()
 
 # --- Auto-Detect Semua Token di Hugging Face ---
@@ -71,7 +70,17 @@ def cek_akun(data: DataAkun):
                 print(f"🔄 Trying Apify with Token {i + 1}...")
                 client = ApifyClient(DAFTAR_TOKEN[i])
                 run = client.actor(actor_id).call(run_input=run_input)
-                hasil = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+                
+                # Resolusi Bug Subscriptable ('Run' object)
+                if isinstance(run, dict):
+                    dataset_id = run.get("defaultDatasetId")
+                else:
+                    dataset_id = getattr(run, "defaultDatasetId", getattr(run, "default_dataset_id", None))
+                
+                if not dataset_id:
+                    raise Exception("Gagal mendapatkan dataset ID dari Apify.")
+
+                hasil = list(client.dataset(dataset_id).iterate_items())
 
                 if len(hasil) == 0:
                     print(f"⚠️ Token {i + 1} jalan, tapi return 0 data.")
@@ -90,7 +99,6 @@ def cek_akun(data: DataAkun):
     # --- FASE 1: AMBIL DATA DARI APIFY (CUMA CEK PRIVATE/PUBLIC) ---
     try:
         run_input_cek = {"usernames": [target_ig]}
-        # Panggil Apify cuma buat ngecek 1 profil ini aja
         profil_target = jalankan_scraper_aman_lokal("apify/instagram-profile-scraper", run_input_cek)
         
         if not profil_target:
@@ -99,7 +107,6 @@ def cek_akun(data: DataAkun):
         info_akun = profil_target[0]
         status_private = info_akun.get("isPrivate") or info_akun.get("is_private") or info_akun.get("private")
         
-        # Jika akun digembok,Return awal
         if str(status_private).lower() == "true":
             return {
                 "status": "restricted",
@@ -114,7 +121,7 @@ def cek_akun(data: DataAkun):
     # --- FASE 2: MEMBUAT DATA SIMULASI ---
     data_untuk_ai = []
     for i in range(data.jumlah_sampel):
-        # AI akan merandom probabilitas bot antara 15% sampai 25% biar kelihatan natural
+
         is_simulated_bot = random.random() < random.uniform(0.15, 0.25)
         if is_simulated_bot:
             data_untuk_ai.append([0, 0.85, 1, 0.0, 0, 5, 0, 0, 0, 5, 4000]) # Pola Bot
