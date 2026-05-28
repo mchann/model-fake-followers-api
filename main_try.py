@@ -202,14 +202,13 @@ def cek_akun(data: DataAkun):
 
     # --- FASE 5: DECISION LOGIC ---
     if persentase_bot < 15.0:
-        rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi sekitar {persentase_bot:.1f}% pengikut bot. Akun ini memiliki audiens yang sangat organik dan direkomendasikan untuk kolaborasi pemasaran."
+        rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi {persentase_bot:.1f}% pengikut mencurigakan. Audiens sangat organik dan direkomendasikan."
     elif persentase_bot < 31.0:
-        rekomendasi = f"Wajar. Terdeteksi sekitar {persentase_bot:.1f}% pengikut bot, yang mana masih dalam batas normal industri. Masih aman untuk kolaborasi, namun tetap pantau rasio engagement kontennya."
+        rekomendasi = f"Wajar. Terdeteksi {persentase_bot:.1f}% pengikut dengan pola tidak aktif/bot. Masih dalam batas toleransi normal industri."
     elif persentase_bot <= 50.0:
-        rekomendasi = f"Waspada. Probabilitas pengikut bot cukup signifikan di angka {persentase_bot:.1f}%. Disarankan untuk melakukan peninjauan manual pada daftar pengikut sebelum mengalokasikan anggaran besar."
+        rekomendasi = f"Waspada. Terdapat indikasi {persentase_bot:.1f}% pengikut memiliki pola tidak wajar. Disarankan melihat metrik engagement (Likes/Comments) secara langsung."
     else:
-        rekomendasi = f"Berisiko Tinggi. Mayoritas pengikut terdeteksi sebagai akun bot atau tidak aktif ({persentase_bot:.1f}%). Investasi pemasaran pada akun ini berisiko sangat tinggi mengakibatkan pemborosan anggaran (budget waste)."
-
+        rekomendasi = f"Perlu Tinjauan Lanjut. Mayoritas dari sampel ({persentase_bot:.1f}%) terdeteksi tidak aktif. Disarankan untuk meninjau insight audiens influencer secara manual sebelum mengalokasikan anggaran pemasaran."
     waktu_wib = timezone(timedelta(hours=7))
 
     return {
