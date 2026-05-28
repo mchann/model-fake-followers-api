@@ -8,6 +8,7 @@ import tensorflow as tf
 import joblib
 from datetime import datetime, timezone, timedelta
 from apify_client import ApifyClient
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -110,11 +111,14 @@ def cek_akun(data: DataAkun):
         status_private = info_akun.get("isPrivate") or info_akun.get("is_private") or info_akun.get("private")
         
         if str(status_private).lower() == "true":
-            return {
-                "status": "restricted",
-                "message": f"Mohon maaf, kami tidak dapat mengaudit @{target_ig} karena akun bersifat private.",
-                "target_akun": f"@{target_ig}"
-            }
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "status": "restricted",
+                    "message": f"Mohon maaf, kami tidak dapat mengaudit @{target_ig} karena akun bersifat private.",
+                    "target_akun": f"@{target_ig}"
+                }
+            )
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengecek status akun target: {str(e)}")
