@@ -15,7 +15,7 @@ load_dotenv()
 DAFTAR_TOKEN = [value for key, value in os.environ.items() if key.startswith("APIFY_TOKEN_") and value.strip()]
 
 app = FastAPI(
-    title="Fluensy AI",
+    title="InsPector",
     description="Bot Detection API with Multi-Token Scraper System",
     version="2.3.0" # Versi Real Data
 )
@@ -49,7 +49,7 @@ class DataAkun(BaseModel):
 def home():
     return {
         "status": "aktif",
-        "message": "Fluensy AI Engine is Running. Real Scraper Mode Active."
+        "message": "InsPector Engine is Running. Real Scraper Mode Active."
     }
 
 # ==========================================
