@@ -1,5 +1,4 @@
 import os
-import random
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,9 +15,9 @@ load_dotenv()
 DAFTAR_TOKEN = [value for key, value in os.environ.items() if key.startswith("APIFY_TOKEN_") and value.strip()]
 
 app = FastAPI(
-    title="Fluensy AI (Demo Mode)",
-    description="Bot Detection API with Simulated Inference & Multi-Token",
-    version="2.2.0"
+    title="Fluensy AI",
+    description="Bot Detection API with Multi-Token Scraper System",
+    version="2.3.0" # Versi Real Data
 )
 
 app.add_middleware(
@@ -29,8 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==========================================
 # LOAD AI & SCALER
-
+# ==========================================
 try:
     model = tf.keras.models.load_model('fake_followers_model.keras', compile=False)
     scaler = joblib.load('scaler.pkl')
@@ -39,24 +39,26 @@ try:
 except Exception as e:
     print(f"❌ ERROR Loading AI Assets: {e}")
 
-# 2. ATURAN INPUT
+# ==========================================
+# ATURAN INPUT
+# ==========================================
 class DataAkun(BaseModel):
     username: str
-    jumlah_sampel: int = 50 
 
-# 3. ENDPOINT ROOT 
 @app.get("/")
 def home():
     return {
         "status": "aktif",
-        "message": "API Deteksi Bot AI (Simulated Mode). Gunakan endpoint POST /api/cek-bot."
+        "message": "Fluensy AI Engine is Running. Real Scraper Mode Active."
     }
 
-# 4. ENDPOINT UTAMA 
-
+# ==========================================
+# ENDPOINT UTAMA 
+# ==========================================
 @app.post("/api/cek-bot")
 def cek_akun(data: DataAkun):
     target_ig = data.username.replace("@", "").strip()
+    BATAS_SAMPEL = 50 
 
     # --- FUNGSI AUTO-SWITCH TOKEN LOKAL ---
     working_token_idx = 0 
@@ -67,7 +69,7 @@ def cek_akun(data: DataAkun):
 
         for i in range(working_token_idx, len(DAFTAR_TOKEN)):
             try:
-                print(f"🔄 Trying Apify with Token {i + 1}...")
+                print(f"🔄 Trying Apify with Token {i + 1} for {actor_id}...")
                 client = ApifyClient(DAFTAR_TOKEN[i])
                 run = client.actor(actor_id).call(run_input=run_input)
                 
@@ -96,7 +98,7 @@ def cek_akun(data: DataAkun):
         
         raise Exception("CRITICAL: Semua token limit atau gagal dieksekusi.")
     
-    # --- FASE 1: AMBIL DATA DARI APIFY (CUMA CEK PRIVATE/PUBLIC) ---
+    # --- FASE 0: CEK PRIVATE/PUBLIC ---
     try:
         run_input_cek = {"usernames": [target_ig]}
         profil_target = jalankan_scraper_aman_lokal("apify/instagram-profile-scraper", run_input_cek)
@@ -110,7 +112,7 @@ def cek_akun(data: DataAkun):
         if str(status_private).lower() == "true":
             return {
                 "status": "restricted",
-                "message": f"Mohon maaf, kami tidak dapat mengaudit @{target_ig} karena akun bersifat private. Silakan pastikan akun target bersifat publik untuk mendapatkan hasil audit yang akurat.",
+                "message": f"Mohon maaf, kami tidak dapat mengaudit @{target_ig} karena akun bersifat private.",
                 "target_akun": f"@{target_ig}"
             }
             
@@ -118,18 +120,68 @@ def cek_akun(data: DataAkun):
         raise HTTPException(status_code=500, detail=f"Gagal mengecek status akun target: {str(e)}")
 
 
-    # --- FASE 2: MEMBUAT DATA SIMULASI ---
+    # --- FASE 1: SCRAPER PERTAMA (AMBIL 50 FOLLOWERS) ---
+    try:
+        run_input_followers = {
+            "Account": [target_ig], 
+            "getFollowers": True,
+            "getFollowing": False,
+            "resultsLimit": BATAS_SAMPEL 
+        }
+        followers_mentah = jalankan_scraper_aman_lokal("scraping_solutions/instagram-scraper-followers-following-no-cookies", run_input_followers)
+        daftar_username = [f.get("username") for f in followers_mentah if f.get("username")]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scraper Followers Failed: {str(e)}")
+
+    if not daftar_username:
+        raise HTTPException(status_code=404, detail="Gagal ekstrak daftar followers. Mungkin terblokir.")
+
+    # --- FASE 2: SCRAPER KEDUA (AMBIL DETAIL 50 PROFIL) ---
+    try:
+        run_input_profiles = {"usernames": daftar_username}
+        profil_lengkap = jalankan_scraper_aman_lokal("apify/instagram-profile-scraper", run_input_profiles)
+
+        if not profil_lengkap:
+            raise HTTPException(status_code=500, detail="Profile details empty.")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scraper Profil Failed: {str(e)}")
+
+
+    # --- FASE 3: EKSTRAKSI FITUR UNTUK AI ---
     data_untuk_ai = []
-    for i in range(data.jumlah_sampel):
+    for prof in profil_lengkap:
+        uname = prof.get("username", "").strip()
+        fname = prof.get("fullName", "").strip() or uname
+        bio = prof.get("biography", "")
+        is_private = prof.get("isPrivate", False)
+        pic_url = prof.get("profilePicUrl", "")
 
-        is_simulated_bot = random.random() < random.uniform(0.15, 0.25)
-        if is_simulated_bot:
-            data_untuk_ai.append([0, 0.85, 1, 0.0, 0, 5, 0, 0, 0, 5, 4000]) # Pola Bot
-        else:
-            data_untuk_ai.append([1, 0.05, 2, 0.0, 0, 50, 1, random.choice([0, 1]), 120, 1500, 350]) # Pola Manusia
+        punya_foto = 1 if pic_url and "default" not in pic_url else 0
 
+        len_uname = len(uname)
+        nums_length_username = sum(c.isdigit() for c in uname) / len_uname if len_uname > 0 else 0.0 
+        len_fname = len(fname)
+        nums_length_fullname = sum(c.isdigit() for c in fname) / len_fname if len_fname > 0 else 0.0 
+        fullname_words = len(fname.split()) 
+        name_equals_username = 1 if uname.lower() == fname.lower() else 0 
+        
+        description_length = len(bio)
+        external_url = 1 if prof.get("externalUrl") else 0
+        private_status = 1 if is_private else 0 
+        
+        posts_count = int(prof.get("postsCount", 0))
+        followers_count = int(prof.get("followersCount", 0))
+        follows_count = int(prof.get("followsCount", 0))
 
-    # --- FASE 3: AI REKOMENDASI ---
+        data_untuk_ai.append([
+            punya_foto, nums_length_username, fullname_words, nums_length_fullname, 
+            name_equals_username, description_length, external_url, private_status, 
+            posts_count, followers_count, follows_count
+        ])
+
+    # --- FASE 4: AI PREDICTION ---
     nama_kolom = [
         'profile pic', 'nums/length username', 'fullname words', 
         'nums/length fullname', 'name==username', 'description length', 
@@ -148,8 +200,7 @@ def cek_akun(data: DataAkun):
     persentase_bot = (jumlah_bot / total_diperiksa) * 100
     persentase_asli = 100 - persentase_bot
 
-
-    # --- FASE 4: LOGIKA REKOMENDASI BERLAPIS ---
+    # --- FASE 5: DECISION LOGIC ---
     if persentase_bot < 15.0:
         rekomendasi = f"Sangat Berkualitas. Hanya terdeteksi sekitar {persentase_bot:.1f}% pengikut bot. Akun ini memiliki audiens yang sangat organik dan direkomendasikan untuk kolaborasi pemasaran."
     elif persentase_bot < 31.0:
