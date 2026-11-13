@@ -1,0 +1,10 @@
+pytest
+httpx
+fastapi
+pydantic
+pandas
+numpy
+scikit-learn
+joblib
+python-dotenv
+apify-client
