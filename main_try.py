@@ -32,12 +32,17 @@ app.add_middleware(
 # ==========================================
 # LOAD AI & SCALER
 # ==========================================
+model = None
+scaler = None
+ASSET_ERROR = None
+
 try:
     model = tf.keras.models.load_model('fake_followers_model.keras', compile=False)
     scaler = joblib.load('scaler.pkl')
     print("✅ Model AI dan Scaler siap!")
     print(f"🔋 Sistem berjalan dengan {len(DAFTAR_TOKEN)} Token Apify Cadangan.")
 except Exception as e:
+    ASSET_ERROR = str(e)
     print(f"❌ ERROR Loading AI Assets: {e}")
 
 # ==========================================
@@ -53,11 +58,30 @@ def home():
         "message": "InsPector Engine is Running. Real Scraper Mode Active."
     }
 
+@app.get("/health")
+def health():
+    """Readiness check. Returns only booleans; the load error stays in the server log."""
+    ready = model is not None and scaler is not None
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={
+            "status": "ok" if ready else "error",
+            "model_loaded": model is not None,
+            "scaler_loaded": scaler is not None,
+        },
+    )
+
 # ==========================================
 # ENDPOINT UTAMA 
 # ==========================================
 @app.post("/api/cek-bot")
 def cek_akun(data: DataAkun):
+    if model is None or scaler is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Layanan belum siap: model atau scaler belum termuat (AI assets not loaded).",
+        )
+
     target_ig = data.username.replace("@", "").strip()
     BATAS_SAMPEL = 50 
 
